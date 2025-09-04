@@ -4,6 +4,21 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
+// Ensure consistent target bytecode when toolchains are not used
+tasks.withType<JavaCompile> {
+    options.release.set(17)
+}
+
+application {
+    mainClass.set("zm.gov.moh.hie.scp.Main")
+}
+
 group = "zm.gov.moh.hie.scp"
 version = "1.0-SNAPSHOT"
 
@@ -11,18 +26,8 @@ repositories {
     mavenCentral()
 }
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
-    }
-}
-
 extra["flinkVersion"] = "1.20.2"
 extra["log4jVersion"] = "2.25.1"
-
-application {
-    mainClass.set("zm.gov.moh.hie.scp.Main")
-}
 
 dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
@@ -38,8 +43,8 @@ dependencies {
     compileOnly("org.apache.flink:flink-json:${property("flinkVersion")}")
 
     // External connectors – include unless your cluster lib/ already has matching versions
-    implementation("org.apache.flink:flink-connector-kafka:3.3.0-1.20")
-    implementation("org.apache.flink:flink-connector-jdbc:3.3.0-1.20")
+    compileOnly("org.apache.flink:flink-connector-kafka:3.3.0-1.20")
+    compileOnly("org.apache.flink:flink-connector-jdbc:3.3.0-1.20")
 
     // Jackson – include so TypeReference is available at runtime
     implementation("com.fasterxml.jackson.core:jackson-core:2.19.2")
@@ -47,7 +52,7 @@ dependencies {
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
 
     // PostgreSQL driver (needed at runtime)
-    implementation("org.postgresql:postgresql:42.7.4")
+    compileOnly("org.postgresql:postgresql:42.7.4")
 
     // Logging
     implementation("org.apache.logging.log4j:log4j-slf4j-impl:${property("log4jVersion")}")
@@ -62,10 +67,8 @@ dependencies {
 // Build a fat jar called *-all.jar that includes app necessary libs (not Flink APIs)
 tasks.withType<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar> {
     archiveClassifier.set("all")
+    archiveFileName.set("zm-scpro-elmis-prescriptions-pipeline-all.jar")
     mergeServiceFiles()
-    manifest {
-        attributes["Main-Class"] = application.mainClass.get()
-    }
     minimize {
         // Keep Jackson fully
         exclude(dependency("com.fasterxml.jackson.core:.*"))

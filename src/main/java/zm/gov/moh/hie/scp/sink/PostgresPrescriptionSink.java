@@ -3,8 +3,9 @@ package zm.gov.moh.hie.scp.sink;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import zm.gov.moh.hie.scp.model.PrescriptionRecord;
-
+import zm.gov.moh.hie.scp.util.DateTimeUtil;
 import java.sql.*;
+import java.time.LocalDateTime;
 
 public class PostgresPrescriptionSink extends RichSinkFunction<PrescriptionRecord> {
     private final String jdbcUrl;
@@ -26,49 +27,25 @@ public class PostgresPrescriptionSink extends RichSinkFunction<PrescriptionRecor
     public void open(Configuration parameters) throws Exception {
         connection = DriverManager.getConnection(jdbcUrl, user, password);
         connection.setAutoCommit(true);
-        ensureTableExists(connection, table);
-        String sql = "INSERT INTO " + table + " (message_id, msh_timestamp, patient_uuid, art_number, cd4, viral_load, date_of_bled, regimen_id, clinician_name, prescription_uuid, prescription_date) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        insertStmt = connection.prepareStatement(sql);
-    }
+        String insertQuery = "INSERT INTO "+ table + "(" +
+                "uuid, hmis_code, drug_count, regimen_count, date, \"time\") " +
+                "VALUES (?, ?, ?, ?, ?, ?)";
 
-    private void ensureTableExists(Connection conn, String table) throws SQLException {
-        String ddl = "CREATE TABLE IF NOT EXISTS " + table + " (" +
-                "id SERIAL PRIMARY KEY, " +
-                "message_id VARCHAR(255), " +
-                "msh_timestamp VARCHAR(255), " +
-                "patient_uuid VARCHAR(255), " +
-                "art_number VARCHAR(255), " +
-                "cd4 VARCHAR(255), " +
-                "viral_load VARCHAR(255), " +
-                "date_of_bled VARCHAR(255), " +
-                "regimen_id INTEGER, " +
-                "clinician_name VARCHAR(255), " +
-                "prescription_uuid VARCHAR(255), " +
-                "prescription_date VARCHAR(255)" +
-                ")";
-        try (Statement st = conn.createStatement()) {
-            st.execute(ddl);
-        }
+        insertStmt = connection.prepareStatement(insertQuery);
     }
 
     @Override
     public void invoke(PrescriptionRecord value, Context context) throws Exception {
         insertStmt.setString(1, value.messageId);
-        insertStmt.setString(2, value.mshTimestamp);
-        insertStmt.setString(3, value.patientUuid);
-        insertStmt.setString(4, value.artNumber);
-        insertStmt.setString(5, value.cd4);
-        insertStmt.setString(6, value.viralLoad);
-        insertStmt.setString(7, value.dateOfBled);
-        if (value.regimenId == null) {
-            insertStmt.setNull(8, Types.INTEGER);
-        } else {
-            insertStmt.setInt(8, value.regimenId);
-        }
-        insertStmt.setString(9, value.clinicianName);
-        insertStmt.setString(10, value.prescriptionUuid);
-        insertStmt.setString(11, value.prescriptionDate);
+        insertStmt.setString(2, value.hmisCode);
+        insertStmt.setInt(3, value.drugCount);
+        insertStmt.setInt(4, value.regimenCount);
+
+        LocalDateTime timestamp = LocalDateTime.parse(value.mshTimestamp, DateTimeUtil.TIMESTAMP_FORMATTER);
+        Timestamp ts = Timestamp.valueOf(timestamp);
+        insertStmt.setDate(5, new java.sql.Date(ts.getTime()));
+        insertStmt.setTime(6, new java.sql.Time(ts.getTime()));
+
         insertStmt.executeUpdate();
     }
 
