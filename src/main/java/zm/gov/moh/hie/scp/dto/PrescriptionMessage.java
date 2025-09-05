@@ -3,10 +3,13 @@ package zm.gov.moh.hie.scp.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.io.Serializable;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PrescriptionMessage {
+public class PrescriptionMessage implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     @JsonProperty("msh")
     public Msh msh;
 
@@ -44,23 +47,35 @@ public class PrescriptionMessage {
     public String prescriptionUuid;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Msh {
+    public static class Msh implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         @JsonProperty("timestamp")
         public String timestamp;
+
         @JsonProperty("sendingApplication")
         public String sendingApplication;
+
         @JsonProperty("receivingApplication")
         public String receivingApplication;
+
         @JsonProperty("messageId")
         public String messageId;
+
         @JsonProperty("hmisCode")
         public String hmisCode;
+
+        @JsonProperty("mflCode")
+        public String mflCode;
+
         @JsonProperty("messageType")
         public String messageType;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Regimen {
+    public static class Regimen implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         @JsonProperty("regimenCode")
         public String regimenCode;
         @JsonProperty("quantityPerDose")
@@ -74,7 +89,9 @@ public class PrescriptionMessage {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Vitals {
+    public static class Vitals implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         @JsonProperty("height")
         public String height;
         @JsonProperty("heightDateTimeCollected")
@@ -90,7 +107,9 @@ public class PrescriptionMessage {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Prescription {
+    public static class Prescription implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         @JsonProperty("prescriptionDrugs")
         public List<PrescriptionDrug> prescriptionDrugs;
         @JsonProperty("date")
@@ -98,7 +117,9 @@ public class PrescriptionMessage {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class PrescriptionDrug {
+    public static class PrescriptionDrug implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         @JsonProperty("drugCode")
         public String drugCode;
         @JsonProperty("quantityPerDose")

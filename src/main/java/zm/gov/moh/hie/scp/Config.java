@@ -65,8 +65,10 @@ public class Config {
         params.put("kafka.sasl.username", "admin");
         params.put("kafka.sasl.password", "075F80FED7C6");
         params.put("jdbc.url", "jdbc:postgresql://db-04.smartcare.com:35616/hie_manager");
+        // params.put("jdbc.url", "jdbc:postgresql://localhost:5432/hie_manager");
         params.put("jdbc.user", "postgres");
         params.put("jdbc.password", "N3vvDbPass4IHM_2025!");
+        // params.put("jdbc.password", "postgres");
 
         // 2) environment variables (upper snake)
         overlayIfPresent(params, "KAFKA_BOOTSTRAP_SERVERS", "kafka.bootstrap.servers");

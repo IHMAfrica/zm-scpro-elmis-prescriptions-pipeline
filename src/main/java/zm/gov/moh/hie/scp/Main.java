@@ -1,6 +1,5 @@
 package zm.gov.moh.hie.scp;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -11,6 +10,8 @@ import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsIni
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,14 +55,10 @@ public class Main {
                 "kafka-prescriptions"
         ).startNewChain();
 
-        ObjectMapper mapper = new ObjectMapper()
-                .registerModule(new JavaTimeModule())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
         SingleOutputStreamOperator<PrescriptionRecord> records = kafkaStream
                 .filter(s -> !StringUtils.isNullOrWhitespaceOnly(s))
-                .map(value -> toRecord(value, mapper))
-                .filter(record -> record.messageId != null)
+                .map(new JsonToPrescriptionRecordMapFunction())
+                .filter(record -> !StringUtils.isNullOrWhitespaceOnly(record.hmisCode))
                 .name("parse-and-flatten")
                 .disableChaining();
 
@@ -77,20 +74,36 @@ public class Main {
         env.execute("SC eLMIS Prescriptions Pipeline");
     }
 
-    private static PrescriptionRecord toRecord(String json, ObjectMapper mapper) {
-        try {
-            PrescriptionMessage msg = mapper.readValue(json, PrescriptionMessage.class);
-            String messageId = msg.msh != null ? msg.msh.messageId : null;
-            String mshTimestamp = msg.msh != null ? msg.msh.timestamp : null;
-            String hmisCode = msg.msh != null ? msg.msh.hmisCode : null;
-            int drugCount = msg.prescription != null ? msg.prescription.prescriptionDrugs.size() : 0;
-            int regimenCount = msg.regimen != null ? msg.regimen.quantityPerDose : 0;
+    private static class JsonToPrescriptionRecordMapFunction extends RichMapFunction<String, PrescriptionRecord> {
+        private transient ObjectMapper mapper;
 
-            return new PrescriptionRecord(messageId, hmisCode, mshTimestamp, drugCount, regimenCount);
-        } catch (JsonProcessingException e) {
-            LOG.error("Failed to parse JSON: {}", json, e);
-            // Drop a malformed message by returning an empty record or null; here we return a record with minimal info
-            return new PrescriptionRecord(null, null, null, 0, 0);
+        @Override
+        public void open(Configuration parameters) {
+            mapper = new ObjectMapper()
+                    .registerModule(new JavaTimeModule())
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        @Override
+        public PrescriptionRecord map(String value) {
+            try {
+                PrescriptionMessage msg = mapper.readValue(value, PrescriptionMessage.class);
+                String messageId = msg.msh != null ? msg.msh.messageId : null;
+                String mshTimestamp = msg.msh != null ? msg.msh.timestamp : null;
+                String hmisCode = msg.msh != null ? msg.msh.hmisCode : null;
+
+                if (StringUtils.isNullOrWhitespaceOnly(hmisCode)) {
+                    hmisCode = msg.msh.mflCode;
+                }
+
+                int drugCount = msg.prescription != null ? msg.prescription.prescriptionDrugs.size() : 0;
+                int regimenCount = msg.regimen != null ? msg.regimen.quantityPerDose : 0;
+
+                return new PrescriptionRecord(messageId, hmisCode, mshTimestamp, drugCount, regimenCount);
+            } catch (Exception e) {
+                LOG.error("Failed to parse JSON: {}", value, e);
+                return new PrescriptionRecord(null, null, null, 0, 0);
+            }
         }
     }
 }
