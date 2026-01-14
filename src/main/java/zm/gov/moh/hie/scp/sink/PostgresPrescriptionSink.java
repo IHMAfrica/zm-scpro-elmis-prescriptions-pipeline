@@ -36,7 +36,7 @@ public class PostgresPrescriptionSink extends RichSinkFunction<PrescriptionRecor
 
     @Override
     public void invoke(PrescriptionRecord value, Context context) throws Exception {
-        insertStmt.setString(1, value.messageId);
+        insertStmt.setString(1, value.prescriptionUuid);
         insertStmt.setString(2, value.hmisCode);
         insertStmt.setInt(3, value.drugCount);
         insertStmt.setInt(4, value.regimenCount);

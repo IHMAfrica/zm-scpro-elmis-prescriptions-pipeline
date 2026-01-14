@@ -88,7 +88,7 @@ public class Main {
         public PrescriptionRecord map(String value) {
             try {
                 PrescriptionMessage msg = mapper.readValue(value, PrescriptionMessage.class);
-                String messageId = msg.msh != null ? msg.msh.messageId : null;
+                String prescriptionUuid = msg.prescriptionUuid;
                 String mshTimestamp = msg.msh != null ? msg.msh.timestamp : null;
                 String hmisCode = msg.msh != null ? msg.msh.hmisCode : null;
 
@@ -99,7 +99,7 @@ public class Main {
                 int drugCount = msg.prescription != null ? msg.prescription.prescriptionDrugs.size() : 0;
                 int regimenCount = msg.regimen != null ? msg.regimen.quantityPerDose : 0;
 
-                return new PrescriptionRecord(messageId, hmisCode, mshTimestamp, drugCount, regimenCount);
+                return new PrescriptionRecord(prescriptionUuid, hmisCode, mshTimestamp, drugCount, regimenCount);
             } catch (Exception e) {
                 LOG.error("Failed to parse JSON: {}", value, e);
                 return new PrescriptionRecord(null, null, null, 0, 0);
