@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -76,10 +77,12 @@ public class PrescriptionMessage implements Serializable {
     public static class Regimen implements Serializable {
         private static final long serialVersionUID = 1L;
 
+        @JsonProperty("medicationId")
+        public String medicationId;
         @JsonProperty("regimenCode")
         public String regimenCode;
         @JsonProperty("quantityPerDose")
-        public Integer quantityPerDose;
+        public BigDecimal quantityPerDose;
         @JsonProperty("dosageUnit")
         public String dosageUnit;
         @JsonProperty("frequency")

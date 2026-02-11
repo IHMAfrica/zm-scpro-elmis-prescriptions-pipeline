@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import zm.gov.moh.hie.scp.dto.PrescriptionMessage;
 import zm.gov.moh.hie.scp.model.PrescriptionRecord;
 import zm.gov.moh.hie.scp.sink.PostgresPrescriptionSink;
+import java.math.BigDecimal;
 
 public class Main {
     private static final Logger LOG = LoggerFactory.getLogger(Main.class);
@@ -93,16 +94,47 @@ public class Main {
                 String hmisCode = msg.msh != null ? msg.msh.hmisCode : null;
 
                 if (StringUtils.isNullOrWhitespaceOnly(hmisCode)) {
-                    hmisCode = msg.msh.mflCode;
+                    hmisCode = msg.msh != null ? msg.msh.mflCode : null;
                 }
 
                 int drugCount = msg.prescription != null ? msg.prescription.prescriptionDrugs.size() : 0;
-                int regimenCount = msg.regimen != null ? msg.regimen.quantityPerDose : 0;
+                int regimenCount = msg.regimen != null && msg.regimen.quantityPerDose != null ? msg.regimen.quantityPerDose.intValue() : 0;
 
-                return new PrescriptionRecord(prescriptionUuid, hmisCode, mshTimestamp, drugCount, regimenCount);
+                // Extract new fields
+                String patientGuid = (msg.patientUuid != null && !msg.patientUuid.isBlank()) ? msg.patientUuid : null;
+                String artNumber = (msg.artNumber != null && !msg.artNumber.isBlank()) ? msg.artNumber : null;
+                String mflCode = msg.msh != null ? msg.msh.mflCode : null;
+                String cd4 = (msg.cd4 != null && !msg.cd4.isBlank()) ? msg.cd4 : null;
+                String viralLoad = (msg.viralLoad != null && !msg.viralLoad.isBlank()) ? msg.viralLoad : null;
+                String dateOfBled = (msg.dateOfBled != null && !msg.dateOfBled.isBlank()) ? msg.dateOfBled : null;
+                Integer regimenId = msg.regimenId;
+
+                String regimenCode = null;
+                Integer duration = null;
+                String medicationId = null;
+                BigDecimal unitQtyPerDose = null;
+                String frequency = null;
+                String unitOfMeasurement = null;
+
+                if (msg.regimen != null) {
+                    regimenCode = (msg.regimen.regimenCode != null && !msg.regimen.regimenCode.isBlank()) ? msg.regimen.regimenCode : null;
+                    duration = msg.regimen.duration;
+                    medicationId = (msg.regimen.medicationId != null && !msg.regimen.medicationId.isBlank()) ? msg.regimen.medicationId : null;
+                    unitQtyPerDose = msg.regimen.quantityPerDose;
+                    frequency = (msg.regimen.frequency != null && !msg.regimen.frequency.isBlank()) ? msg.regimen.frequency : null;
+                    unitOfMeasurement = (msg.regimen.dosageUnit != null && !msg.regimen.dosageUnit.isBlank()) ? msg.regimen.dosageUnit : null;
+                }
+
+                return new PrescriptionRecord(prescriptionUuid, hmisCode, mshTimestamp, drugCount, regimenCount,
+                        patientGuid, artNumber, mflCode, cd4, viralLoad,
+                        dateOfBled, regimenId, regimenCode, duration,
+                        medicationId, unitQtyPerDose, frequency, unitOfMeasurement);
             } catch (Exception e) {
                 LOG.error("Failed to parse JSON: {}", value, e);
-                return new PrescriptionRecord(null, null, null, 0, 0);
+                return new PrescriptionRecord(null, null, null, 0, 0,
+                        null, null, null, null, null,
+                        null, null, null, null,
+                        null, null, null, null);
             }
         }
     }
