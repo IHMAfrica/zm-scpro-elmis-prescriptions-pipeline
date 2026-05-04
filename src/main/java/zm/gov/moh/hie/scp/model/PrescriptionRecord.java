@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 
 public class PrescriptionRecord implements Serializable {
     public String prescriptionUuid;
+    public String messageId;
     public String hmisCode;
     public String mshTimestamp;
     public int drugCount;
@@ -27,11 +28,12 @@ public class PrescriptionRecord implements Serializable {
 
     public PrescriptionRecord() {}
 
-    public PrescriptionRecord(String prescriptionUuid, String hmisCode, String mshTimestamp, int drugCount, int regimenCount,
+    public PrescriptionRecord(String prescriptionUuid, String messageId, String hmisCode, String mshTimestamp, int drugCount, int regimenCount,
                               String patientGuid, String artNumber, String mflCode, String cd4, String viralLoad,
                               String dateOfBled, Integer regimenId, String regimenCode, Integer duration,
                               String medicationId, BigDecimal unitQtyPerDose, String frequency, String unitOfMeasurement) {
         this.prescriptionUuid = prescriptionUuid;
+        this.messageId = messageId;
         this.hmisCode = hmisCode;
         this.mshTimestamp = mshTimestamp;
         this.drugCount = drugCount;

@@ -29,10 +29,10 @@ public class PostgresPrescriptionSink extends RichSinkFunction<PrescriptionRecor
         connection = DriverManager.getConnection(jdbcUrl, user, password);
         connection.setAutoCommit(true);
         String insertQuery = "INSERT INTO "+ table + "(" +
-                "uuid, hmis_code, drug_count, regimen_count, date, \"time\", " +
+                "uuid, message_id, hmis_code, drug_count, regimen_count, date, \"time\", " +
                 "patient_guid, art_number, mfl_code, cd4, viral_load, date_of_bled, " +
                 "regimen_id, regimen_code, duration, medication_id, unit_qty_per_dose, frequency, unit_of_measurement) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         insertStmt = connection.prepareStatement(insertQuery);
     }
@@ -41,21 +41,22 @@ public class PostgresPrescriptionSink extends RichSinkFunction<PrescriptionRecor
     public void invoke(PrescriptionRecord value, Context context) throws Exception {
         // Original 6 parameters
         insertStmt.setString(1, value.prescriptionUuid);
-        insertStmt.setString(2, value.hmisCode);
-        insertStmt.setInt(3, value.drugCount);
-        insertStmt.setInt(4, value.regimenCount);
+        insertStmt.setString(2, value.messageId);
+        insertStmt.setString(3, value.hmisCode);
+        insertStmt.setInt(4, value.drugCount);
+        insertStmt.setInt(5, value.regimenCount);
 
         LocalDateTime timestamp = LocalDateTime.parse(value.mshTimestamp, DateTimeUtil.TIMESTAMP_FORMATTER);
         Timestamp ts = Timestamp.valueOf(timestamp);
-        insertStmt.setDate(5, new java.sql.Date(ts.getTime()));
-        insertStmt.setTime(6, new java.sql.Time(ts.getTime()));
+        insertStmt.setDate(6, new java.sql.Date(ts.getTime()));
+        insertStmt.setTime(7, new java.sql.Time(ts.getTime()));
 
         // New 13 parameters
-        insertStmt.setString(7, value.patientGuid);
-        insertStmt.setString(8, value.artNumber);
-        insertStmt.setString(9, value.mflCode);
-        insertStmt.setString(10, value.cd4);
-        insertStmt.setString(11, value.viralLoad);
+        insertStmt.setString(8, value.patientGuid);
+        insertStmt.setString(9, value.artNumber);
+        insertStmt.setString(10, value.mflCode);
+        insertStmt.setString(11, value.cd4);
+        insertStmt.setString(12, value.viralLoad);
 
         // dateOfBled - parse with try/catch
         Timestamp dateOfBledTs = null;
@@ -68,31 +69,31 @@ public class PostgresPrescriptionSink extends RichSinkFunction<PrescriptionRecor
             }
         }
         if (dateOfBledTs != null) {
-            insertStmt.setTimestamp(12, dateOfBledTs);
+            insertStmt.setTimestamp(13, dateOfBledTs);
         } else {
-            insertStmt.setNull(12, Types.TIMESTAMP);
+            insertStmt.setNull(13, Types.TIMESTAMP);
         }
 
         // regimenId
         if (value.regimenId != null) {
-            insertStmt.setInt(13, value.regimenId);
+            insertStmt.setInt(14, value.regimenId);
         } else {
-            insertStmt.setNull(13, Types.INTEGER);
+            insertStmt.setNull(14, Types.INTEGER);
         }
 
-        insertStmt.setString(14, value.regimenCode);
+        insertStmt.setString(15, value.regimenCode);
 
         // duration
         if (value.duration != null) {
-            insertStmt.setInt(15, value.duration);
+            insertStmt.setInt(16, value.duration);
         } else {
-            insertStmt.setNull(15, Types.INTEGER);
+            insertStmt.setNull(16, Types.INTEGER);
         }
 
-        insertStmt.setString(16, value.medicationId);
-        insertStmt.setBigDecimal(17, value.unitQtyPerDose);
-        insertStmt.setString(18, value.frequency);
-        insertStmt.setString(19, value.unitOfMeasurement);
+        insertStmt.setString(17, value.medicationId);
+        insertStmt.setBigDecimal(18, value.unitQtyPerDose);
+        insertStmt.setString(19, value.frequency);
+        insertStmt.setString(20, value.unitOfMeasurement);
 
         insertStmt.executeUpdate();
     }
