@@ -1,6 +1,7 @@
 package zm.gov.moh.hie.scp;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -10,8 +11,9 @@ import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsIni
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.util.Collector;
 import org.apache.flink.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +60,7 @@ public class Main {
 
         SingleOutputStreamOperator<PrescriptionRecord> records = kafkaStream
                 .filter(s -> !StringUtils.isNullOrWhitespaceOnly(s))
-                .map(new JsonToPrescriptionRecordMapFunction())
+                .flatMap(new JsonToPrescriptionRecordFlatMapFunction())
                 .filter(record -> !StringUtils.isNullOrWhitespaceOnly(record.hmisCode))
                 .name("parse-and-flatten")
                 .disableChaining();
@@ -75,7 +77,7 @@ public class Main {
         env.execute("SC eLMIS Prescriptions Pipeline");
     }
 
-    private static class JsonToPrescriptionRecordMapFunction extends RichMapFunction<String, PrescriptionRecord> {
+    public static class JsonToPrescriptionRecordFlatMapFunction extends RichFlatMapFunction<String, PrescriptionRecord> {
         private transient ObjectMapper mapper;
 
         @Override
@@ -86,56 +88,112 @@ public class Main {
         }
 
         @Override
-        public PrescriptionRecord map(String value) {
+        public void flatMap(String value, Collector<PrescriptionRecord> out) throws Exception {
             try {
-                PrescriptionMessage msg = mapper.readValue(value, PrescriptionMessage.class);
-                String prescriptionUuid = msg.prescriptionUuid;
-                String messageId = msg.msh != null ? msg.msh.messageId : null;
-                String mshTimestamp = msg.msh != null ? msg.msh.timestamp : null;
-                String hmisCode = msg.msh != null ? msg.msh.hmisCode : null;
+                JsonNode msg = mapper.readTree(value);
 
-                if (StringUtils.isNullOrWhitespaceOnly(hmisCode)) {
-                    hmisCode = msg.msh != null ? msg.msh.mflCode : null;
+                // Extract base fields from root and msh
+                String prescriptionUuid = msg.get("prescriptionUuid") != null ? msg.get("prescriptionUuid").asText() : null;
+                String messageId = msg.get("msh") != null && msg.get("msh").get("messageId") != null ?
+                        msg.get("msh").get("messageId").asText() : null;
+                String hmisCode = msg.get("msh") != null && msg.get("msh").get("hmisCode") != null ?
+                        msg.get("msh").get("hmisCode").asText() : null;
+                String mflCode = msg.get("msh") != null && msg.get("msh").get("mflCode") != null ?
+                        msg.get("msh").get("mflCode").asText() : null;
+                String mshTimestamp = msg.get("msh") != null && msg.get("msh").get("timestamp") != null ?
+                        msg.get("msh").get("timestamp").asText() : null;
+                String patientGuid = msg.get("patientUuid") != null ? msg.get("patientUuid").asText() : null;
+                String artNumber = msg.get("artNumber") != null ? msg.get("artNumber").asText() : null;
+                String cd4 = msg.get("cd4") != null ? msg.get("cd4").asText() : null;
+                String viralLoad = msg.get("viralLoad") != null ? msg.get("viralLoad").asText() : null;
+                String dateOfBled = msg.get("dateOfBled") != null ? msg.get("dateOfBled").asText() : null;
+                Integer regimenId = msg.get("regimenId") != null ? msg.get("regimenId").asInt() : null;
+
+                // Process prescriptionDrugs array (nested under prescription.prescriptionDrugs)
+                JsonNode prescriptionNode = msg.get("prescription");
+                JsonNode drugsNode = null;
+                if (prescriptionNode != null) {
+                    drugsNode = prescriptionNode.get("prescriptionDrugs");
                 }
 
-                int drugCount = msg.prescription != null ? msg.prescription.prescriptionDrugs.size() : 0;
-                int regimenCount = msg.regimen != null && msg.regimen.quantityPerDose != null ? msg.regimen.quantityPerDose.intValue() : 0;
+                if (drugsNode != null && drugsNode.isArray()) {
+                    for (JsonNode drug : drugsNode) {
+                        String medicationId = drug.get("medicationId") != null ? drug.get("medicationId").asText() : null;
+                        String drugCode = drug.get("drugCode") != null ? drug.get("drugCode").asText() : null;
+                        BigDecimal quantityPerDose = drug.get("quantityPerDose") != null ?
+                                new BigDecimal(drug.get("quantityPerDose").asText()) : null;
+                        String dosageUnit = drug.get("dosageUnit") != null ? drug.get("dosageUnit").asText() : null;
+                        String frequency = drug.get("frequency") != null ? drug.get("frequency").asText() : null;
+                        Integer duration = drug.get("duration") != null ? drug.get("duration").asInt() : null;
 
-                // Extract new fields
-                String patientGuid = (msg.patientUuid != null && !msg.patientUuid.isBlank()) ? msg.patientUuid : null;
-                String artNumber = (msg.artNumber != null && !msg.artNumber.isBlank()) ? msg.artNumber : null;
-                String mflCode = msg.msh != null ? msg.msh.mflCode : null;
-                String cd4 = (msg.cd4 != null && !msg.cd4.isBlank()) ? msg.cd4 : null;
-                String viralLoad = (msg.viralLoad != null && !msg.viralLoad.isBlank()) ? msg.viralLoad : null;
-                String dateOfBled = (msg.dateOfBled != null && !msg.dateOfBled.isBlank()) ? msg.dateOfBled : null;
-                Integer regimenId = msg.regimenId;
-
-                String regimenCode = null;
-                Integer duration = null;
-                String medicationId = null;
-                BigDecimal unitQtyPerDose = null;
-                String frequency = null;
-                String unitOfMeasurement = null;
-
-                if (msg.regimen != null) {
-                    regimenCode = (msg.regimen.regimenCode != null && !msg.regimen.regimenCode.isBlank()) ? msg.regimen.regimenCode : null;
-                    duration = msg.regimen.duration;
-                    medicationId = (msg.regimen.medicationId != null && !msg.regimen.medicationId.isBlank()) ? msg.regimen.medicationId : null;
-                    unitQtyPerDose = msg.regimen.quantityPerDose;
-                    frequency = (msg.regimen.frequency != null && !msg.regimen.frequency.isBlank()) ? msg.regimen.frequency : null;
-                    unitOfMeasurement = (msg.regimen.dosageUnit != null && !msg.regimen.dosageUnit.isBlank()) ? msg.regimen.dosageUnit : null;
+                        PrescriptionRecord record = new PrescriptionRecord(
+                                prescriptionUuid,
+                                messageId,
+                                "drug",  // type
+                                hmisCode,
+                                mshTimestamp,
+                                patientGuid,
+                                artNumber,
+                                mflCode,
+                                cd4,
+                                viralLoad,
+                                dateOfBled,
+                                regimenId,
+                                null,  // regimenCode (not applicable for drugs)
+                                duration,
+                                medicationId,
+                                drugCode,
+                                quantityPerDose,
+                                frequency,
+                                dosageUnit
+                        );
+                        out.collect(record);
+                    }
                 }
 
-                return new PrescriptionRecord(prescriptionUuid, messageId, hmisCode, mshTimestamp, drugCount, regimenCount,
-                        patientGuid, artNumber, mflCode, cd4, viralLoad,
-                        dateOfBled, regimenId, regimenCode, duration,
-                        medicationId, unitQtyPerDose, frequency, unitOfMeasurement);
+                // Process regimen
+                JsonNode regimenNode = msg.get("regimen");
+                if (regimenNode != null && !regimenNode.isNull()) {
+                    String regimenMedicationId = regimenNode.get("medicationId") != null ?
+                            regimenNode.get("medicationId").asText() : null;
+                    if (regimenMedicationId != null && !regimenMedicationId.isEmpty()) {
+                        String regimenCode = regimenNode.get("regimenCode") != null ?
+                                regimenNode.get("regimenCode").asText() : null;
+                        BigDecimal quantityPerDose = regimenNode.get("quantityPerDose") != null ?
+                                new BigDecimal(regimenNode.get("quantityPerDose").asText()) : null;
+                        String dosageUnit = regimenNode.get("dosageUnit") != null ?
+                                regimenNode.get("dosageUnit").asText() : null;
+                        String frequency = regimenNode.get("frequency") != null ?
+                                regimenNode.get("frequency").asText() : null;
+                        Integer duration = regimenNode.get("duration") != null ?
+                                regimenNode.get("duration").asInt() : null;
+
+                        PrescriptionRecord record = new PrescriptionRecord(
+                                prescriptionUuid,
+                                messageId,
+                                "regimen",  // type
+                                hmisCode,
+                                mshTimestamp,
+                                patientGuid,
+                                artNumber,
+                                mflCode,
+                                cd4,
+                                viralLoad,
+                                dateOfBled,
+                                regimenId,
+                                regimenCode,
+                                duration,
+                                regimenMedicationId,
+                                null,  // drugCode (not applicable for regimen)
+                                quantityPerDose,
+                                frequency,
+                                dosageUnit
+                        );
+                        out.collect(record);
+                    }
+                }
             } catch (Exception e) {
-                LOG.error("Failed to parse JSON: {}", value, e);
-                return new PrescriptionRecord(null, null, null, null, 0, 0,
-                        null, null, null, null, null,
-                        null, null, null, null,
-                        null, null, null, null);
+                LOG.error("Error flattening prescription record: {}", value, e);
             }
         }
     }

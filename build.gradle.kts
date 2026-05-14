@@ -32,6 +32,7 @@ extra["log4jVersion"] = "2.25.1"
 dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.apache.flink:flink-streaming-java:${property("flinkVersion")}")
 
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
     implementation("ca.uhn.hapi:hapi-structures-v25:2.5.1")
