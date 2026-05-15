@@ -32,7 +32,27 @@ public class PostgresPrescriptionSink extends RichSinkFunction<PrescriptionRecor
                 "uuid, message_id, type, hmis_code, date, \"time\", " +
                 "patient_guid, art_number, mfl_code, cd4, viral_load, date_of_bled, " +
                 "regimen_id, regimen_code, duration, medication_id, drug_code, unit_qty_per_dose, frequency, unit_of_measurement, msh_timestamp) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (uuid, medication_id, type) " +
+                "DO UPDATE SET " +
+                "message_id = EXCLUDED.message_id, " +
+                "hmis_code = EXCLUDED.hmis_code, " +
+                "date = CURRENT_DATE, " +
+                "\"time\" = CURRENT_TIME::time(0), " +
+                "patient_guid = EXCLUDED.patient_guid, " +
+                "art_number = EXCLUDED.art_number, " +
+                "mfl_code = EXCLUDED.mfl_code, " +
+                "cd4 = EXCLUDED.cd4, " +
+                "viral_load = EXCLUDED.viral_load, " +
+                "date_of_bled = EXCLUDED.date_of_bled, " +
+                "regimen_id = EXCLUDED.regimen_id, " +
+                "regimen_code = EXCLUDED.regimen_code, " +
+                "duration = EXCLUDED.duration, " +
+                "drug_code = EXCLUDED.drug_code, " +
+                "unit_qty_per_dose = EXCLUDED.unit_qty_per_dose, " +
+                "frequency = EXCLUDED.frequency, " +
+                "unit_of_measurement = EXCLUDED.unit_of_measurement, " +
+                "msh_timestamp = EXCLUDED.msh_timestamp";
 
         insertStmt = connection.prepareStatement(insertQuery);
     }
